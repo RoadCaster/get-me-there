@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import mapboxgl from "mapbox-gl";
+import type { Feature, LineString } from "geojson";
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN as string;
 
@@ -15,9 +16,9 @@ export default function Map({ fromCoords, toCoords, onRoute }: Props) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const map = useRef<mapboxgl.Map | null>(null);
 
-  // -------------------------
+  // -----------------------
   // INIT MAP
-  // -------------------------
+  // -----------------------
   useEffect(() => {
     if (map.current) return;
 
@@ -29,9 +30,9 @@ export default function Map({ fromCoords, toCoords, onRoute }: Props) {
     });
   }, []);
 
-  // -------------------------
-  // ROUTE CALCULATION
-  // -------------------------
+  // -----------------------
+  // BUILD ROUTE
+  // -----------------------
   useEffect(() => {
     if (!map.current) return;
     if (!fromCoords || !toCoords) return;
@@ -43,26 +44,29 @@ export default function Map({ fromCoords, toCoords, onRoute }: Props) {
 
       const data = await res.json();
 
-      const route = data.routes[0].geometry.coordinates;
-      const duration = data.routes[0].duration;
+      const route: number[][] = data.routes[0].geometry.coordinates;
+      const duration: number = data.routes[0].duration;
 
-      // send to parent
+      // send data up
       if (onRoute) {
         onRoute(route, duration);
       }
 
-      const geojson = {
-        type: "Feature" as const,
+      // -----------------------
+      // ✅ FIXED GEOJSON (Vercel-safe)
+      // -----------------------
+      const geojson: Feature<LineString> = {
+        type: "Feature",
         properties: {},
         geometry: {
-          type: "LineString" as const,
+          type: "LineString",
           coordinates: route,
         },
       };
 
-      // -------------------------
-      // ADD / UPDATE ROUTE LAYER
-      // -------------------------
+      // -----------------------
+      // ADD / UPDATE SOURCE
+      // -----------------------
       const source = map.current.getSource("route") as mapboxgl.GeoJSONSource;
 
       if (source) {
@@ -84,9 +88,14 @@ export default function Map({ fromCoords, toCoords, onRoute }: Props) {
         });
       }
 
-      // fit map to route
+      // -----------------------
+      // FIT MAP TO ROUTE
+      // -----------------------
       const bounds = new mapboxgl.LngLatBounds();
-      route.forEach((coord: number[]) => bounds.extend(coord as [number, number]));
+
+      route.forEach((coord) => {
+        bounds.extend(coord as [number, number]);
+      });
 
       map.current.fitBounds(bounds, {
         padding: 60,
