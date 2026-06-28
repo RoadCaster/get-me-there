@@ -2,28 +2,44 @@
 
 import { useEffect, useState } from "react";
 import Map from "@/components/Map";
-import { geocode } from "@/lib/geocode";
-import { getRoutes, RouteOption } from "@/lib/routes";
-import { getHourlyForecast } from "@/lib/weather";
-import { scoreRouteWeather } from "@/lib/optimizer";
+import AppHeader from "@/components/AppHeader";
+import TripPlannerCard from "@/components/TripPlannerCard";
+import TripSummary from "@/components/TripSummary";
+import RouteCard from "@/components/RouteCard";
+import WeatherCard from "@/components/WeatherCard";
+import DirectionsPanel from "@/components/DirectionsPanel";
+import VehicleProfileCard from "@/components/VehicleProfileCard";
+
+import { VehicleMode } from "@/lib/vehicleProfiles";
+import { useTripRoutes } from "@/hooks/useTripRoutes";
+import { useRouteWeather } from "@/hooks/useRouteWeather";
+import { useVoiceNavigation } from "@/hooks/useVoiceNavigation";
 
 export default function Home() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [departure, setDeparture] = useState("");
+  const [vehicleMode, setVehicleMode] = useState<VehicleMode>("car");
 
-  const [routes, setRoutes] = useState<RouteOption[]>([]);
-  const [activeRouteIndex, setActiveRouteIndex] = useState<number | null>(null);
+  const {
+    routes,
+    activeRoute,
+    activeRouteIndex,
+    setActiveRouteIndex,
+    loadingRoutes,
+    error,
+    setError,
+    generateRoutes,
+  } = useTripRoutes();
 
-  const [weatherScore, setWeatherScore] = useState<number | null>(null);
-  const [weatherSummary, setWeatherSummary] = useState<any[]>([]);
+  const {
+    weatherSummary,
+    weatherScore,
+    loadingWeather,
+    weatherError,
+  } = useRouteWeather(activeRoute, departure, vehicleMode);
 
-  const [loadingRoutes, setLoadingRoutes] = useState(false);
-  const [loadingWeather, setLoadingWeather] = useState(false);
-  const [error, setError] = useState("");
-
-  const activeRoute =
-    activeRouteIndex !== null ? routes[activeRouteIndex] : null;
+  const { startNavigation } = useVoiceNavigation(activeRoute);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -37,371 +53,127 @@ export default function Home() {
     }
   }, []);
 
-  async function generateRoutes(fromValue = from, toValue = to) {
-    try {
-      setError("");
-      setLoadingRoutes(true);
-      setWeatherScore(null);
-      setWeatherSummary([]);
-      setRoutes([]);
-      setActiveRouteIndex(null);
-
-      const fromC = await geocode(fromValue);
-      const toC = await geocode(toValue);
-
-      if (!fromC || !toC) {
-        throw new Error("Could not find one of those locations.");
-      }
-
-      const routeOptions = await getRoutes(fromC, toC);
-
-      setRoutes(routeOptions);
-      setActiveRouteIndex(null);
-    } catch (err: any) {
-      setError(err.message || "Something went wrong generating routes.");
-    } finally {
-      setLoadingRoutes(false);
-    }
-  }
-
-  function getSamplePoints(route: number[][], count = 6) {
-    if (!route.length) return [];
-
-    const points = [];
-
-    for (let i = 0; i < count; i++) {
-      const index = Math.floor((route.length - 1) * (i / (count - 1)));
-      points.push(route[index]);
-    }
-
-    return points;
-  }
-
-  function getEstimatedArrivalTime(index: number, total: number) {
-    const start = departure ? new Date(departure) : new Date();
-
-    if (!activeRoute?.duration) return start;
-
-    const secondsPerSegment = activeRoute.duration / Math.max(total - 1, 1);
-
-    return new Date(start.getTime() + secondsPerSegment * index * 1000);
-  }
-
-  function findClosestForecastHour(forecast: any[], targetTime: Date) {
-    if (!forecast.length) return null;
-
-    return forecast.reduce((closest, current) => {
-      const closestDiff = Math.abs(
-        new Date(closest.time).getTime() - targetTime.getTime()
-      );
-
-      const currentDiff = Math.abs(
-        new Date(current.time).getTime() - targetTime.getTime()
-      );
-
-      return currentDiff < closestDiff ? current : closest;
-    });
-  }
-
   useEffect(() => {
-    async function loadWeatherForSelectedRoute() {
-      if (!activeRoute?.coords?.length) return;
+    if (weatherError) {
+      setError(weatherError);
+    }
+  }, [weatherError, setError]);
 
-      try {
-        setLoadingWeather(true);
-        setWeatherScore(null);
-        setWeatherSummary([]);
-
-        const samplePoints = getSamplePoints(activeRoute.coords, 6);
-
-        const weatherPoints = await Promise.all(
-          samplePoints.map(async ([lon, lat], index) => {
-            const arrivalTime = getEstimatedArrivalTime(
-              index,
-              samplePoints.length
-            );
-
-            const forecast = await getHourlyForecast(lat, lon);
-            const closest = findClosestForecastHour(forecast, arrivalTime);
-
-            return {
-              lat,
-              lon,
-              location: forecast?.[0]?.location || `Stop ${index + 1}`,
-              arrivalTime,
-              condition: closest?.condition || "Unknown",
-              temp: closest?.temp ?? null,
-              wind: closest?.wind ?? null,
-              precip: closest?.precip ?? null,
-            };
-          })
-        );
-
-        const score = scoreRouteWeather(weatherPoints);
-
-        setWeatherSummary(weatherPoints);
-        setWeatherScore(score);
-      } catch {
-        setError("Weather data could not be loaded for this route.");
-      } finally {
-        setLoadingWeather(false);
-      }
+  function goToDashboard() {
+    if (activeRoute) {
+      sessionStorage.setItem(
+        "currentTrip",
+        JSON.stringify({
+          from,
+          to,
+          departure,
+          route: activeRoute.coords,
+          weatherScore,
+          weatherSummary,
+          vehicleMode,
+          createdAt: new Date().toISOString(),
+        })
+      );
     }
 
-    loadWeatherForSelectedRoute();
-  }, [activeRouteIndex, routes, departure]);
-
-  function getDistanceInFeet(
-    lat1: number,
-    lon1: number,
-    lat2: number,
-    lon2: number
-  ) {
-    const earthRadiusFeet = 20902231;
-    const dLat = ((lat2 - lat1) * Math.PI) / 180;
-    const dLon = ((lon2 - lon1) * Math.PI) / 180;
-
-    const a =
-      Math.sin(dLat / 2) ** 2 +
-      Math.cos((lat1 * Math.PI) / 180) *
-        Math.cos((lat2 * Math.PI) / 180) *
-        Math.sin(dLon / 2) ** 2;
-
-    return earthRadiusFeet * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  }
-
-  function speak(text: string) {
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
-  }
-
-  function startNavigation() {
-    if (!navigator.geolocation) {
-      alert("Geolocation is not supported on this device.");
-      return;
-    }
-
-    if (!activeRoute?.steps?.length) {
-      alert("Select a route first.");
-      return;
-    }
-
-    let currentStepIndex = 0;
-    const spokenSteps = new Set<number>();
-
-    navigator.geolocation.watchPosition(
-      (position) => {
-        const currentLat = position.coords.latitude;
-        const currentLon = position.coords.longitude;
-
-        const step = activeRoute.steps[currentStepIndex];
-
-        if (!step?.location) return;
-
-        const [stepLon, stepLat] = step.location;
-
-        const distanceFeet = getDistanceInFeet(
-          currentLat,
-          currentLon,
-          stepLat,
-          stepLon
-        );
-
-        if (distanceFeet <= 500 && !spokenSteps.has(currentStepIndex)) {
-          speak(step.instruction);
-          spokenSteps.add(currentStepIndex);
-          currentStepIndex++;
-        }
-      },
-      () => {
-        alert("Could not access your location.");
-      },
-      {
-        enableHighAccuracy: true,
-        maximumAge: 1000,
-        timeout: 10000,
-      }
-    );
+    window.location.href = "/dashboard";
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white p-6">
-      <div className="max-w-5xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold">Get Me There</h1>
-          <p className="text-slate-400 mt-2">
-            Weather-aware route planning for road trips
-          </p>
+    <main className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900 p-6 text-white">
+      <div className="mx-auto max-w-6xl">
+        <AppHeader />
+
+        <TripPlannerCard
+          from={from}
+          to={to}
+          departure={departure}
+          loading={loadingRoutes}
+          setFrom={setFrom}
+          setTo={setTo}
+          setDeparture={setDeparture}
+          onGenerate={() => generateRoutes(from, to)}
+        />
+
+        <div className="mt-6">
+          <VehicleProfileCard
+            vehicleMode={vehicleMode}
+            setVehicleMode={setVehicleMode}
+          />
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-3">
-          <input
-            className="w-full p-3 bg-slate-800 rounded"
-            placeholder="From"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-          />
-
-          <input
-            className="w-full p-3 bg-slate-800 rounded"
-            placeholder="To"
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-          />
-
-          <input
-            type="datetime-local"
-            className="w-full p-3 bg-slate-800 rounded"
-            value={departure}
-            onChange={(e) => setDeparture(e.target.value)}
-          />
-
-          <button
-            onClick={() => generateRoutes()}
-            className="w-full bg-blue-600 hover:bg-blue-500 p-3 rounded font-semibold"
-          >
-            {loadingRoutes ? "Generating routes..." : "Generate Routes"}
-          </button>
-
-          <button
-            onClick={() => {
-              if (activeRoute) {
-                sessionStorage.setItem(
-                  "currentTrip",
-                  JSON.stringify({
-                    from,
-                    to,
-                    departure,
-                    route: activeRoute.coords,
-                    weatherScore,
-                    weatherSummary,
-                    createdAt: new Date().toISOString(),
-                  })
-                );
-              }
-
-              window.location.href = "/dashboard";
-            }}
-            className="w-full bg-slate-700 hover:bg-slate-600 p-3 rounded font-semibold"
-          >
-            Dashboard
-          </button>
-        </div>
+        <button
+          onClick={goToDashboard}
+          className="mt-4 w-full rounded-xl bg-slate-700 p-3 font-semibold hover:bg-slate-600"
+        >
+          Dashboard
+        </button>
 
         {error && (
-          <div className="mt-4 p-3 bg-red-900/40 border border-red-700 rounded">
+          <div className="mt-4 rounded-xl border border-red-700 bg-red-900/40 p-3">
             {error}
           </div>
         )}
 
+        <TripSummary
+          from={from}
+          to={to}
+          duration={activeRoute?.duration}
+          distance={activeRoute?.distance}
+          score={weatherScore}
+        />
+
         {activeRoute && (
-          <div className="mt-6">
+          <div className="mt-6 overflow-hidden rounded-3xl border border-slate-800 bg-slate-900 p-3">
             <Map route={activeRoute.coords} />
           </div>
         )}
 
         {routes.length > 0 && (
-          <div className="mt-6 space-y-3">
-            <h2 className="text-xl font-semibold">Route Options</h2>
+          <section className="mt-6">
+            <h2 className="mb-4 text-xl font-semibold">Route Options</h2>
 
-            {routes.map((route, index) => (
-              <button
-                key={index}
-                onClick={() => setActiveRouteIndex(index)}
-                className={`w-full text-left p-4 rounded border transition ${
-                  activeRouteIndex === index
-                    ? "border-green-500 bg-green-900/20"
-                    : "border-slate-700 bg-slate-900/40 hover:border-blue-500"
-                }`}
-              >
-                <div className="font-semibold">Route {index + 1}</div>
-
-                <div className="text-sm text-slate-400">
-                  Duration: {Math.round(route.duration / 60)} min
-                </div>
-
-                <div className="text-sm text-slate-400">
-                  Distance: {Math.round(route.distance / 1609)} miles
-                </div>
-              </button>
-            ))}
-          </div>
+            <div className="grid gap-3 md:grid-cols-3">
+              {routes.map((route, index) => (
+                <RouteCard
+                  key={index}
+                  index={index}
+                  active={activeRouteIndex === index}
+                  duration={route.duration}
+                  distance={route.distance}
+                  onClick={() => setActiveRouteIndex(index)}
+                />
+              ))}
+            </div>
+          </section>
         )}
 
         {loadingWeather && (
-          <div className="mt-6 p-4 bg-slate-900 border border-slate-800 rounded">
-            Loading weather for selected route...
+          <div className="mt-6 rounded-xl border border-slate-800 bg-slate-900 p-4">
+            Checking weather along selected route...
           </div>
         )}
 
-        {weatherScore !== null && (
-          <div className="mt-6 p-4 bg-slate-900 border border-slate-800 rounded">
-            <h2 className="text-xl font-semibold">Selected Route Weather</h2>
+        {weatherSummary.length > 0 && (
+          <section className="mt-6">
+            <h2 className="mb-4 text-xl font-semibold">Weather Along Route</h2>
 
-            <div className="mt-2">
-              Weather Risk Score:{" "}
-              <span className="font-bold">{weatherScore}</span>
-            </div>
-
-            <div className="mt-4 space-y-2">
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
               {weatherSummary.map((w, index) => (
-                <div
+                <WeatherCard
                   key={index}
-                  className="p-3 bg-slate-800 rounded flex justify-between gap-4"
-                >
-                  <div>
-                    <div className="font-medium">
-                      {w.location || `Stop ${index + 1}`}
-                    </div>
-                    <div className="text-sm text-slate-400">
-                      {w.arrivalTime.toLocaleTimeString()}
-                    </div>
-                  </div>
-
-                  <div className="text-right">
-                    <div>{w.condition}</div>
-                    <div className="text-sm text-slate-400">
-                      {w.temp !== null ? `${w.temp}°F` : "Temp unavailable"}
-                    </div>
-                    <div className="text-sm text-slate-400">
-                      Wind: {w.wind ?? "?"} mph
-                    </div>
-                  </div>
-                </div>
+                  w={w}
+                  vehicleMode={vehicleMode}
+                />
               ))}
             </div>
-          </div>
+          </section>
         )}
 
-        {activeRoute && (activeRoute.steps?.length ?? 0) > 0 && (
-          <div className="mt-6 p-4 bg-slate-900 border border-slate-800 rounded">
-            <h2 className="text-xl font-semibold mb-4">
-              Turn-by-Turn Directions
-            </h2>
-
-            <div className="space-y-3">
-              {activeRoute.steps.map((step, index) => (
-                <div key={index} className="p-3 bg-slate-800 rounded">
-                  <div className="font-medium">
-                    {index + 1}. {step.instruction}
-                  </div>
-
-                  <div className="text-sm text-slate-400 mt-1">
-                    {(step.distance / 1609).toFixed(1)} mi •{" "}
-                    {Math.round(step.duration / 60)} min
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <button
-              onClick={startNavigation}
-              className="mt-4 w-full bg-green-600 hover:bg-green-500 p-3 rounded font-semibold"
-            >
-              Start Voice Navigation
-            </button>
-          </div>
-        )}
+        <DirectionsPanel
+          steps={activeRoute?.steps ?? []}
+          onStartNavigation={startNavigation}
+        />
       </div>
     </main>
   );
