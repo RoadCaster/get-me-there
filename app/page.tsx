@@ -7,7 +7,6 @@ import { getRoutes, RouteOption } from "@/lib/routes";
 import { getHourlyForecast } from "@/lib/weather";
 import { scoreRouteWeather } from "@/lib/optimizer";
 import { supabase } from "@/lib/supabase";
-import { saveTrip } from "@/lib/trips";
 
 export default function Home() {
   const [from, setFrom] = useState("");
@@ -157,33 +156,7 @@ export default function Home() {
     loadWeatherForSelectedRoute();
   }, [activeRouteIndex, routes]);
 
-  async function handleSaveTrip() {
-    const { data } = await supabase.auth.getSession();
-
-    if (!data.session) {
-      const goLogin = confirm(
-        "You need to log in to save routes. Go to login page?"
-      );
-
-      if (goLogin) {
-        window.location.href = "/login";
-      }
-
-      return;
-    }
-
-    if (!activeRoute) return;
-
-    await saveTrip({
-      from,
-      to,
-      route: activeRoute.coords,
-    });
-
-    alert("Trip saved!");
-  }
-
-  return (
+    return (
     <main className="min-h-screen bg-slate-950 text-white p-6">
       <div className="max-w-5xl mx-auto">
         <div className="mb-8">
@@ -223,19 +196,28 @@ export default function Home() {
           </button>
 
           <button
-            onClick={handleSaveTrip}
-            disabled={!activeRoute}
-            className="w-full bg-purple-600 hover:bg-purple-500 disabled:bg-slate-700 p-3 rounded font-semibold"
-          >
-            Save Selected Trip
-          </button>
+  onClick={() => {
+    if (activeRoute) {
+      sessionStorage.setItem(
+        "currentTrip",
+        JSON.stringify({
+          from,
+          to,
+          departure,
+          route: activeRoute.coords,
+          weatherScore,
+          weatherSummary,
+          createdAt: new Date().toISOString(),
+        })
+      );
+    }
 
-          <button
-            onClick={() => (window.location.href = "/dashboard")}
-            className="w-full bg-slate-700 hover:bg-slate-600 p-3 rounded font-semibold"
-          >
-            Dashboard
-          </button>
+    window.location.href = "/dashboard";
+  }}
+  className="w-full bg-slate-700 hover:bg-slate-600 p-3 rounded font-semibold"
+>
+  Dashboard
+</button>
         </div>
 
         {error && (
