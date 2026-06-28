@@ -5,11 +5,14 @@ export async function getHourlyForecast(lat: number, lon: number) {
 
   const data = await res.json();
 
-  return data.forecast.forecastday[0].hour.map((h: any) => ({
-    time: h.time,
-    temp: h.temp_f,
-    condition: h.condition.text,
-    wind: h.wind_mph,
-    precip: h.chance_of_rain,
-  }));
+  return data.forecast.forecastday
+    .flatMap((day: any) => day.hour)
+    .map((h: any) => ({
+      location: `${data.location.name}, ${data.location.region}`,
+      time: h.time,
+      temp: h.temp_f,
+      condition: h.condition.text,
+      wind: h.wind_mph,
+      precip: h.chance_of_rain,
+    }));
 }

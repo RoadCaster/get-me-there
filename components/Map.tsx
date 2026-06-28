@@ -3,107 +3,91 @@
 import { useEffect, useRef } from "react";
 import mapboxgl from "mapbox-gl";
 
-mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN as string;
+mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!;
 
 type Props = {
-  fromCoords: [number, number];
-  toCoords: [number, number];
-  onRoute?: (coords: number[][], duration: number) => void;
+  route: number[][];
 };
 
-export default function Map({ fromCoords, toCoords, onRoute }: Props) {
+export default function Map({ route }: Props) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const map = useRef<mapboxgl.Map | null>(null);
 
-  // -----------------------
-  // INIT MAP (run once)
-  // -----------------------
   useEffect(() => {
     if (map.current) return;
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current!,
       style: "mapbox://styles/mapbox/streets-v12",
-      center: fromCoords,
-      zoom: 5,
+      center: [-98.5795, 39.8283],
+      zoom: 3,
     });
+
+    map.current.addControl(new mapboxgl.NavigationControl());
   }, []);
 
-  // -----------------------
-  // BUILD ROUTE
-  // -----------------------
   useEffect(() => {
-    if (!map.current) return;
-    if (!fromCoords || !toCoords) return;
+    if (!map.current || !route || route.length === 0) return;
 
-    const getRoute = async () => {
-      const res = await fetch(
-        `https://api.mapbox.com/directions/v5/mapbox/driving/${fromCoords[0]},${fromCoords[1]};${toCoords[0]},${toCoords[1]}?geometries=geojson&access_token=${mapboxgl.accessToken}`
-      );
+    const m = map.current;
 
-      const data = await res.json();
+    const geojson: any = {
+      type: "Feature",
+      properties: {},
+      geometry: {
+        type: "LineString",
+        coordinates: route,
+      },
+    };
 
-      const route: number[][] = data.routes[0].geometry.coordinates;
-      const duration: number = data.routes[0].duration;
-
-      if (onRoute) {
-        onRoute(route, duration);
-      }
-
-      // -----------------------
-      // SAFE GEOJSON (NO TYPES)
-      // -----------------------
-      const geojson = {
-        type: "Feature",
-        properties: {},
-        geometry: {
-          type: "LineString",
-          coordinates: route,
-        },
-      };
-
-      const source = map.current!.getSource("route") as mapboxgl.GeoJSONSource;
+    const drawRoute = () => {
+      const source = m.getSource("active-route") as mapboxgl.GeoJSONSource;
 
       if (source) {
-        source.setData(geojson as any);
+        source.setData(geojson);
       } else {
-        map.current!.addSource("route", {
+        m.addSource("active-route", {
           type: "geojson",
-          data: geojson as any,
+          data: geojson,
         });
 
-        map.current!.addLayer({
-          id: "route-line",
+        m.addLayer({
+          id: "active-route-line",
           type: "line",
-          source: "route",
+          source: "active-route",
+          layout: {
+            "line-join": "round",
+            "line-cap": "round",
+          },
           paint: {
             "line-color": "#3b82f6",
-            "line-width": 4,
+            "line-width": 5,
           },
         });
       }
 
-      // -----------------------
-      // FIT BOUNDS
-      // -----------------------
       const bounds = new mapboxgl.LngLatBounds();
 
       route.forEach((coord) => {
         bounds.extend(coord as [number, number]);
       });
 
-      map.current!.fitBounds(bounds, {
+      m.fitBounds(bounds, {
         padding: 60,
       });
     };
 
-    getRoute();
-  }, [fromCoords, toCoords]);
+    if (m.isStyleLoaded()) {
+      drawRoute();
+    } else {
+      m.once("load", drawRoute);
+    }
+  }, [route]);
 
   return (
     <div
       ref={mapContainer}
-      className="w-full h-[400px] rounded-xl mt-6 overflow-hidden"
+      className="w-full h-[500px] rounded-xl overflow-hidden border border-slate-800"
     />
   );
 }

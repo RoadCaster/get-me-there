@@ -1,4 +1,6 @@
-export async function geocode(place: string) {
+export async function geocode(
+  place: string
+): Promise<[number, number] | null> {
   const res = await fetch(
     `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
       place
@@ -7,7 +9,9 @@ export async function geocode(place: string) {
 
   const data = await res.json();
 
-  if (!data.features || data.features.length === 0) return null;
+  if (!data.features || data.features.length === 0) {
+    return null;
+  }
 
   const [lon, lat] = data.features[0].center;
 

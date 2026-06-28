@@ -1,0 +1,13 @@
+[33m0ed8df2[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m HEAD@{0}: pull origin main --no-rebase: Fast-forward
+[33m6542b2a[m HEAD@{1}: checkout: moving from main to main
+[33m6542b2a[m HEAD@{2}: rebase (abort): returning to refs/heads/main
+[33m854e6c3[m HEAD@{3}: commit: SaaS upgrade: auth, multi-route, forecast system, UI polish
+[33m48df01b[m HEAD@{4}: commit: Fix Mapbox Vercel build (GeoJSON TS strict issue)
+[33m2340335[m HEAD@{5}: commit: Fix Mapbox GeoJSON + Vercel build stability
+[33ma133062[m HEAD@{6}: commit: Fix Mapbox TS + Vercel build issues
+[33m6542b2a[m HEAD@{7}: reset: moving to 6542b2a
+[33ma744d99[m HEAD@{8}: pull origin main --rebase (start): checkout a744d99424c24458f02e33ca803f1a33ebef6701
+[33m6542b2a[m HEAD@{9}: Branch: renamed refs/heads/master to refs/heads/main
+[33m6542b2a[m HEAD@{11}: commit: Initial working version of Get Me There
+[33m0121a60[m HEAD@{12}: commit: Initial UI for Get Me There
+[33m9dca97c[m HEAD@{13}: commit (initial): Initial commit from Create Next App

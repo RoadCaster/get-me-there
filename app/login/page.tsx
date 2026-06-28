@@ -6,18 +6,22 @@ import { useState } from "react";
 export default function Login() {
   const [email, setEmail] = useState("");
 
-  async function signIn() {
-    await supabase.auth.signInWithOtp({
+  async function login() {
+    const { error } = await supabase.auth.signInWithOtp({
       email,
     });
 
-    alert("Check your email for login link");
+    if (!error) {
+      alert("Check your email for login link");
+    }
   }
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-slate-950 text-white">
-      <div className="p-6 bg-slate-900 rounded-xl w-[400px]">
-        <h1 className="text-xl font-bold mb-4">Get Me There Login</h1>
+      <div className="w-[400px] p-6 bg-slate-900 rounded-xl">
+        <h1 className="text-xl font-bold mb-4">
+          Save Your Trips (Optional)
+        </h1>
 
         <input
           className="w-full p-3 bg-slate-800 rounded mb-3"
@@ -26,10 +30,10 @@ export default function Login() {
         />
 
         <button
-          onClick={signIn}
+          onClick={login}
           className="w-full bg-blue-600 p-3 rounded"
         >
-          Send Magic Link
+          Send Login Link
         </button>
       </div>
     </main>
