@@ -6,14 +6,50 @@ import { scoreRouteWeather } from "@/lib/optimizer";
 import { RouteOption } from "@/lib/routes";
 import { VehicleMode } from "@/lib/vehicleProfiles";
 
-function getSamplePoints(route: number[][], count = 6) {
+type Position = {
+  lat: number;
+  lon: number;
+};
+
+function distanceSquared(a: number[], b: number[]) {
+  return (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2;
+}
+
+function findClosestRouteIndex(route: number[][], position: Position | null) {
+  if (!position) return 0;
+
+  let closestIndex = 0;
+  let closestDistance = Infinity;
+
+  route.forEach((coord, index) => {
+    const d = distanceSquared(coord, [position.lon, position.lat]);
+
+    if (d < closestDistance) {
+      closestDistance = d;
+      closestIndex = index;
+    }
+  });
+
+  return closestIndex;
+}
+
+function getUpcomingSamplePoints(
+  route: number[][],
+  position: Position | null,
+  count = 4
+) {
   if (!route.length) return [];
+
+  const startIndex = findClosestRouteIndex(route, position);
+  const remaining = route.slice(startIndex);
+
+  if (remaining.length <= count) return remaining;
 
   const points = [];
 
   for (let i = 0; i < count; i++) {
-    const index = Math.floor((route.length - 1) * (i / (count - 1)));
-    points.push(route[index]);
+    const index = Math.floor((remaining.length - 1) * (i / (count - 1)));
+    points.push(remaining[index]);
   }
 
   return points;
@@ -38,7 +74,8 @@ function findClosestForecastHour(forecast: any[], targetTime: Date) {
 export function useRouteWeather(
   activeRoute: RouteOption | null,
   departure: string,
-  vehicleMode: VehicleMode
+  vehicleMode: VehicleMode,
+  currentPosition: Position | null
 ) {
   const [weatherSummary, setWeatherSummary] = useState<any[]>([]);
   const [weatherScore, setWeatherScore] = useState<number | null>(null);
@@ -56,10 +93,13 @@ export function useRouteWeather(
       try {
         setWeatherError("");
         setLoadingWeather(true);
-        setWeatherScore(null);
-        setWeatherSummary([]);
 
-        const samplePoints = getSamplePoints(activeRoute.coords, 6);
+        const samplePoints = getUpcomingSamplePoints(
+          activeRoute.coords,
+          currentPosition,
+          4
+        );
+
         const start = departure ? new Date(departure) : new Date();
 
         const weatherPoints = await Promise.all(
@@ -77,7 +117,7 @@ export function useRouteWeather(
             return {
               lat,
               lon,
-              location: forecast?.[0]?.location || `Stop ${index + 1}`,
+              location: forecast?.[0]?.location || `Upcoming ${index + 1}`,
               arrivalTime,
               condition: closest?.condition || "Unknown",
               temp: closest?.temp ?? null,
@@ -87,10 +127,8 @@ export function useRouteWeather(
           })
         );
 
-        const score = scoreRouteWeather(weatherPoints, vehicleMode);
-
         setWeatherSummary(weatherPoints);
-        setWeatherScore(score);
+        setWeatherScore(scoreRouteWeather(weatherPoints, vehicleMode));
       } catch {
         setWeatherError("Weather data could not be loaded for this route.");
       } finally {
@@ -99,7 +137,7 @@ export function useRouteWeather(
     }
 
     loadWeatherForSelectedRoute();
-  }, [activeRoute, departure, vehicleMode]);
+  }, [activeRoute, departure, vehicleMode, currentPosition]);
 
   return {
     weatherSummary,

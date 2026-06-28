@@ -20,6 +20,10 @@ export default function Home() {
   const [to, setTo] = useState("");
   const [departure, setDeparture] = useState("");
   const [vehicleMode, setVehicleMode] = useState<VehicleMode>("car");
+  const [currentPosition, setCurrentPosition] = useState<{
+  lat: number;
+  lon: number;
+} | null>(null);
 
   const {
     routes,
@@ -37,7 +41,7 @@ export default function Home() {
     weatherScore,
     loadingWeather,
     weatherError,
-  } = useRouteWeather(activeRoute, departure, vehicleMode);
+  } = useRouteWeather(activeRoute, departure, vehicleMode, currentPosition);
 
   const { startNavigation } = useVoiceNavigation(activeRoute);
 
@@ -125,7 +129,11 @@ export default function Home() {
 
         {activeRoute && (
           <div className="mt-6 overflow-hidden rounded-3xl border border-slate-800 bg-slate-900 p-3">
-            <Map route={activeRoute.coords} weatherPoints={weatherSummary} />
+            <Map
+  route={activeRoute.coords}
+  weatherPoints={weatherSummary}
+  onLocationUpdate={setCurrentPosition}
+/>
           </div>
         )}
 

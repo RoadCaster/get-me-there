@@ -1,4 +1,5 @@
 import { CalendarDays, LocateFixed, MapPin, Rocket } from "lucide-react";
+import AddressAutocomplete from "@/components/AddressAutocomplete";
 
 type Props = {
   from: string;
@@ -44,21 +45,19 @@ export default function TripPlannerCard({
         <div className="space-y-3">
           <div className="flex items-center gap-3 rounded-2xl border border-slate-700 bg-slate-900/80 p-3">
             <LocateFixed className="text-green-400" />
-            <input
-              className="w-full bg-transparent outline-none"
-              placeholder="Starting point"
-              value={from}
-              onChange={(e) => setFrom(e.target.value)}
+            <AddressAutocomplete
+             label="Starting point"
+             value={from}
+             onChange={setFrom}
             />
           </div>
 
           <div className="flex items-center gap-3 rounded-2xl border border-slate-700 bg-slate-900/80 p-3">
             <MapPin className="text-pink-400" />
-            <input
-              className="w-full bg-transparent outline-none"
-              placeholder="Destination"
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
+            <AddressAutocomplete
+             label="Destination"
+             value={to}
+             onChange={setTo}
             />
           </div>
 

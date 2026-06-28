@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Get Me There</string>
+    <string name="title_activity_main">Get Me There</string>
+    <string name="package_name">com.getmethere.app</string>
+    <string name="custom_url_scheme">com.getmethere.app</string>
+</resources>

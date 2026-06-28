@@ -1,4 +1,10 @@
-export type VehicleMode = "car" | "pickup" | "rv" | "semi" | "bus";
+export type VehicleMode =
+  | "car"
+  | "motorcycle"
+  | "pickup"
+  | "rv"
+  | "semi"
+  | "bus";
 
 export const vehicleProfiles = {
   car: {
@@ -9,6 +15,14 @@ export const vehicleProfiles = {
     windHigh: 45,
     windExtreme: 55,
   },
+  motorcycle: {
+  label: "Motorcycle",
+  emoji: "🏍️",
+  description: "Extra sensitive to wind, rain, ice, and visibility",
+  windCaution: 18,
+  windHigh: 28,
+  windExtreme: 38,
+},
   pickup: {
     label: "Pickup + Trailer",
     emoji: "🛻",

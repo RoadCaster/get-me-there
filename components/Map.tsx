@@ -19,9 +19,14 @@ type WeatherPoint = {
 type Props = {
   route: number[][];
   weatherPoints?: WeatherPoint[];
+  onLocationUpdate?: (position: { lat: number; lon: number }) => void;
 };
 
-export default function Map({ route, weatherPoints = [] }: Props) {
+export default function Map({
+  route,
+  weatherPoints = [],
+  onLocationUpdate,
+}: Props) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const markers = useRef<mapboxgl.Marker[]>([]);
@@ -125,21 +130,55 @@ export default function Map({ route, weatherPoints = [] }: Props) {
       el.className =
         "flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-blue-600 text-sm font-bold text-white shadow-lg cursor-pointer";
 
-      el.innerText = `${index + 1}`;
+      function getWeatherEmoji(condition: string) {
+  const c = condition.toLowerCase();
+
+  if (c.includes("storm") || c.includes("thunder")) return "⛈️";
+  if (c.includes("rain")) return "🌧️";
+  if (c.includes("snow")) return "❄️";
+  if (c.includes("cloud")) return "☁️";
+  if (c.includes("fog")) return "🌫️";
+  if (c.includes("sun") || c.includes("clear")) return "☀️";
+
+  return "🌦️";
+}
+
+el.innerText = getWeatherEmoji(point.condition || "");
 
       const popup = new mapboxgl.Popup({
         offset: 25,
         closeButton: false,
       }).setHTML(`
-        <div style="font-family: sans-serif; min-width: 190px;">
-          <strong>${point.location || `Waypoint ${index + 1}`}</strong>
-          <div>ETA: ${new Date(point.arrivalTime).toLocaleTimeString()}</div>
-          <div>${point.condition}</div>
-          <div>Temp: ${point.temp ?? "?"}°F</div>
-          <div>Wind: ${point.wind ?? "?"} mph</div>
-          <div>Rain chance: ${point.precip ?? "?"}%</div>
-        </div>
-      `);
+  <div style="
+    background:#0f172a;
+    color:#f8fafc;
+    font-family:Inter, system-ui, sans-serif;
+    min-width:210px;
+    padding:12px;
+    border-radius:12px;
+    border:1px solid #334155;
+    box-shadow:0 10px 30px rgba(0,0,0,.35);
+  ">
+    <div style="font-weight:700; margin-bottom:6px;">
+      ${point.location || `Waypoint ${index + 1}`}
+    </div>
+    <div style="font-size:13px; color:#cbd5e1;">
+      ETA: ${new Date(point.arrivalTime).toLocaleTimeString()}
+    </div>
+    <div style="margin-top:8px; font-weight:600;">
+      ${point.condition || "Weather unavailable"}
+    </div>
+    <div style="font-size:13px; color:#cbd5e1;">
+      Temp: ${point.temp ?? "?"}°F
+    </div>
+    <div style="font-size:13px; color:#cbd5e1;">
+      Wind: ${point.wind ?? "?"} mph
+    </div>
+    <div style="font-size:13px; color:#cbd5e1;">
+      Rain chance: ${point.precip ?? "?"}%
+    </div>
+  </div>
+`);
 
       const marker = new mapboxgl.Marker(el)
         .setLngLat([point.lon, point.lat])
@@ -172,6 +211,10 @@ export default function Map({ route, weatherPoints = [] }: Props) {
         const lon = position.coords.longitude;
         const lat = position.coords.latitude;
         const heading = position.coords.heading;
+        onLocationUpdate?.({
+  lat: position.coords.latitude,
+  lon: position.coords.longitude,
+});
 
         map.current?.easeTo({
           center: [lon, lat],
