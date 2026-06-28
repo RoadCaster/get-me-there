@@ -373,7 +373,7 @@ export default function Home() {
           </div>
         )}
 
-        {activeRoute?.steps?.length > 0 && (
+        {activeRoute && (activeRoute.steps?.length ?? 0) > 0 && (
           <div className="mt-6 p-4 bg-slate-900 border border-slate-800 rounded">
             <h2 className="text-xl font-semibold mb-4">
               Turn-by-Turn Directions
