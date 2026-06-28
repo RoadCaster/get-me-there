@@ -23,7 +23,19 @@ export default function Map({ route }: Props) {
       zoom: 3,
     });
 
-    map.current.addControl(new mapboxgl.NavigationControl());
+    map.current.addControl(new mapboxgl.NavigationControl(), "top-right");
+
+map.current.addControl(
+  new mapboxgl.GeolocateControl({
+    positionOptions: {
+      enableHighAccuracy: true,
+    },
+    trackUserLocation: true,
+    showUserHeading: true,
+    showAccuracyCircle: true,
+  }),
+  "top-right"
+);
   }, []);
 
   useEffect(() => {
