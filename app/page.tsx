@@ -6,7 +6,6 @@ import { geocode } from "@/lib/geocode";
 import { getRoutes, RouteOption } from "@/lib/routes";
 import { getHourlyForecast } from "@/lib/weather";
 import { scoreRouteWeather } from "@/lib/optimizer";
-import { supabase } from "@/lib/supabase";
 
 export default function Home() {
   const [from, setFrom] = useState("");
@@ -14,10 +13,7 @@ export default function Home() {
   const [departure, setDeparture] = useState("");
 
   const [routes, setRoutes] = useState<RouteOption[]>([]);
-  const [activeRouteIndex, setActiveRouteIndex] = useState(0);
-
-  const [fromCoords, setFromCoords] = useState<[number, number] | null>(null);
-  const [toCoords, setToCoords] = useState<[number, number] | null>(null);
+  const [activeRouteIndex, setActiveRouteIndex] = useState<number | null>(null);
 
   const [weatherScore, setWeatherScore] = useState<number | null>(null);
   const [weatherSummary, setWeatherSummary] = useState<any[]>([]);
@@ -26,7 +22,8 @@ export default function Home() {
   const [loadingWeather, setLoadingWeather] = useState(false);
   const [error, setError] = useState("");
 
-  const activeRoute = routes[activeRouteIndex];
+  const activeRoute =
+    activeRouteIndex !== null ? routes[activeRouteIndex] : null;
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -47,6 +44,7 @@ export default function Home() {
       setWeatherScore(null);
       setWeatherSummary([]);
       setRoutes([]);
+      setActiveRouteIndex(null);
 
       const fromC = await geocode(fromValue);
       const toC = await geocode(toValue);
@@ -55,13 +53,10 @@ export default function Home() {
         throw new Error("Could not find one of those locations.");
       }
 
-      setFromCoords(fromC);
-      setToCoords(toC);
-
       const routeOptions = await getRoutes(fromC, toC);
 
       setRoutes(routeOptions);
-      setActiveRouteIndex(0);
+      setActiveRouteIndex(null);
     } catch (err: any) {
       setError(err.message || "Something went wrong generating routes.");
     } finally {
@@ -129,16 +124,16 @@ export default function Home() {
             const forecast = await getHourlyForecast(lat, lon);
             const closest = findClosestForecastHour(forecast, arrivalTime);
 
-           return {
-  lat,
-  lon,
-  location: forecast?.[0]?.location || `Stop ${index + 1}`,
-  arrivalTime,
-  condition: closest?.condition || "Unknown",
-  temp: closest?.temp ?? null,
-  wind: closest?.wind ?? null,
-  precip: closest?.precip ?? null,
-};
+            return {
+              lat,
+              lon,
+              location: forecast?.[0]?.location || `Stop ${index + 1}`,
+              arrivalTime,
+              condition: closest?.condition || "Unknown",
+              temp: closest?.temp ?? null,
+              wind: closest?.wind ?? null,
+              precip: closest?.precip ?? null,
+            };
           })
         );
 
@@ -154,9 +149,82 @@ export default function Home() {
     }
 
     loadWeatherForSelectedRoute();
-  }, [activeRouteIndex, routes]);
+  }, [activeRouteIndex, routes, departure]);
 
-    return (
+  function getDistanceInFeet(
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number
+  ) {
+    const earthRadiusFeet = 20902231;
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) ** 2;
+
+    return earthRadiusFeet * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  function speak(text: string) {
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+  }
+
+  function startNavigation() {
+    if (!navigator.geolocation) {
+      alert("Geolocation is not supported on this device.");
+      return;
+    }
+
+    if (!activeRoute?.steps?.length) {
+      alert("Select a route first.");
+      return;
+    }
+
+    let currentStepIndex = 0;
+    const spokenSteps = new Set<number>();
+
+    navigator.geolocation.watchPosition(
+      (position) => {
+        const currentLat = position.coords.latitude;
+        const currentLon = position.coords.longitude;
+
+        const step = activeRoute.steps[currentStepIndex];
+
+        if (!step?.location) return;
+
+        const [stepLon, stepLat] = step.location;
+
+        const distanceFeet = getDistanceInFeet(
+          currentLat,
+          currentLon,
+          stepLat,
+          stepLon
+        );
+
+        if (distanceFeet <= 500 && !spokenSteps.has(currentStepIndex)) {
+          speak(step.instruction);
+          spokenSteps.add(currentStepIndex);
+          currentStepIndex++;
+        }
+      },
+      () => {
+        alert("Could not access your location.");
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 1000,
+        timeout: 10000,
+      }
+    );
+  }
+
+  return (
     <main className="min-h-screen bg-slate-950 text-white p-6">
       <div className="max-w-5xl mx-auto">
         <div className="mb-8">
@@ -196,28 +264,28 @@ export default function Home() {
           </button>
 
           <button
-  onClick={() => {
-    if (activeRoute) {
-      sessionStorage.setItem(
-        "currentTrip",
-        JSON.stringify({
-          from,
-          to,
-          departure,
-          route: activeRoute.coords,
-          weatherScore,
-          weatherSummary,
-          createdAt: new Date().toISOString(),
-        })
-      );
-    }
+            onClick={() => {
+              if (activeRoute) {
+                sessionStorage.setItem(
+                  "currentTrip",
+                  JSON.stringify({
+                    from,
+                    to,
+                    departure,
+                    route: activeRoute.coords,
+                    weatherScore,
+                    weatherSummary,
+                    createdAt: new Date().toISOString(),
+                  })
+                );
+              }
 
-    window.location.href = "/dashboard";
-  }}
-  className="w-full bg-slate-700 hover:bg-slate-600 p-3 rounded font-semibold"
->
-  Dashboard
-</button>
+              window.location.href = "/dashboard";
+            }}
+            className="w-full bg-slate-700 hover:bg-slate-600 p-3 rounded font-semibold"
+          >
+            Dashboard
+          </button>
         </div>
 
         {error && (
@@ -302,6 +370,36 @@ export default function Home() {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {activeRoute?.steps?.length > 0 && (
+          <div className="mt-6 p-4 bg-slate-900 border border-slate-800 rounded">
+            <h2 className="text-xl font-semibold mb-4">
+              Turn-by-Turn Directions
+            </h2>
+
+            <div className="space-y-3">
+              {activeRoute.steps.map((step, index) => (
+                <div key={index} className="p-3 bg-slate-800 rounded">
+                  <div className="font-medium">
+                    {index + 1}. {step.instruction}
+                  </div>
+
+                  <div className="text-sm text-slate-400 mt-1">
+                    {(step.distance / 1609).toFixed(1)} mi •{" "}
+                    {Math.round(step.duration / 60)} min
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={startNavigation}
+              className="mt-4 w-full bg-green-600 hover:bg-green-500 p-3 rounded font-semibold"
+            >
+              Start Voice Navigation
+            </button>
           </div>
         )}
       </div>

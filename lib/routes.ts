@@ -3,6 +3,7 @@ export type RouteStep = {
   distance: number;
   duration: number;
   name: string;
+  location: [number, number];
 };
 
 export type RouteOption = {
@@ -32,11 +33,15 @@ export async function getRoutes(
     coords: r.geometry.coordinates,
     duration: r.duration,
     distance: r.distance,
-    steps: r.legs?.[0]?.steps?.map((s: any) => ({
+   steps:
+  r.legs?.flatMap((leg: any) =>
+    leg.steps?.map((s: any) => ({
       instruction: s.maneuver?.instruction || "Continue",
       distance: s.distance,
       duration: s.duration,
       name: s.name || "",
-    })) || [],
+      location: s.maneuver?.location, // [lon, lat] 
+    }))
+  ) || [],
   }));
 }
