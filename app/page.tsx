@@ -125,7 +125,7 @@ export default function Home() {
 
         {activeRoute && (
           <div className="mt-6 overflow-hidden rounded-3xl border border-slate-800 bg-slate-900 p-3">
-            <Map route={activeRoute.coords} />
+            <Map route={activeRoute.coords} weatherPoints={weatherSummary} />
           </div>
         )}
 
